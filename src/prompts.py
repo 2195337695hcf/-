@@ -1,44 +1,50 @@
 from pathlib import Path
 
+ROLE_PROMPTS = {
+    "新生": "你是郑州航院新生信息助手，回答需语言规范、语句通顺、分点清晰，每个要点简短精炼。回答末尾标注信息来源：郑州航空工业管理学院官网《新生入学指南》",
+    "在校生": "你像办事老司机学长，语气简洁。优先给：① 地点 ② 电话 ③ 所需材料 ④ 办结时间",
+    "教师": "你面向教师，语气专业礼貌。优先给：① 政策依据 ② 办事窗口 ③ 联系人",
+}
 
-def load_school_info() -> str:
+ALIAS_DICT = """
+【同义词表】
+- "学校" "航院" "ZUA" "郑航" ≈ 郑州航空工业管理学院
+- "新校区" "龙湖" "新校" ≈ 龙子湖校区
+- "卡" "饭卡" "校卡" ≈ 校园一卡通
+- "保安" "门卫" "校警" ≈ 保卫处
+- "迁户口" "落户" ≈ 户籍迁入/迁出
+- "调宿舍" "换宿舍" ≈ 宿舍调整申请
+- "证明" "在读证明" ≈ 在校学籍证明
+"""
+
+def load_school_info():
     data_dir = Path("data")
     if not data_dir.exists():
-        return ""
-    
-    school_info = []
-    for md_file in sorted(data_dir.glob("*.md")):
-        try:
-            with open(md_file, "r", encoding="utf-8") as f:
-                content = f.read()
-                school_info.append(f"## {md_file.stem}\n\n{content}")
-        except Exception:
-            pass
-    
-    return "\n\n".join(school_info)
+        return "暂无校园知识库，请在项目根目录创建data文件夹并放入md文档"
+    md_files = sorted(data_dir.glob("*.md"))
+    if not md_files:
+        return "data文件夹内暂无知识库文件"
+    return "\n\n".join(
+        f"==== {f.name} ====\n{f.read_text(encoding='utf-8')}"
+        for f in md_files
+    )
 
+def get_system_prompt(role, info):
+    return f"""你是郑州航院校园信息助手「小航」。
+{ROLE_PROMPTS[role]}
 
-def get_system_prompt(role: str, school_data: str) -> str:
-    role_prompts = {
-        "新生": "你是一位热心的郑州航院新生辅导员，专门解答新生入学相关问题，如报到流程、宿舍安排、军训注意事项等。",
-        "在校生": "你是一位郑州航院在校生学长/学姐，熟悉校园生活，能解答选课、奖学金、日常学习生活等问题。",
-        "教师": "你是郑州航院的一位教职工，熟悉学校各项政策和办公流程，能解答教学管理、科研相关等问题。"
-    }
-    
-    role_desc = role_prompts.get(role, "你是郑州航院校园信息助手。")
-    
-    return f"""
-你是小航，郑州航院校园信息助手。
+【格式要求】
+1. 回答控制在200-500字以内，语言简洁，避免冗余。
+2. 使用1、2、3分点回答，每个要点不超过2行。
+3. 禁止重复词语和循环赘述，确保语句通顺。
 
-{role_desc}
+【硬规则】
+1. 只能依据【学校资料】回答，无相关内容统一回复：我没收录，建议拨打总值班室0371-61911000。
+2. 严禁编造电话、地址、费用、人名、办公时间。
+3. 涉及转账缴费必须提示：先联系辅导员核实，转账类均为诈骗。
+4. 心理危机问题，提供12320-5心理援助并建议告知辅导员。
+5. 拒绝查询教务、一卡通、财务的个人隐私数据。
 
-以下是郑州航院的校园知识库，请根据这些信息回答用户问题：
-
-{school_data}
-
-规则：
-1. 只回答与郑州航院相关的问题，非校园问题请礼貌拒绝。
-2. 优先使用知识库中的信息进行回答。
-3. 如果知识库中没有相关信息，请明确说明。
-4. 回答要简洁明了，重点突出。
+【学校资料】
+{info}
 """
